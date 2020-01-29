@@ -23,13 +23,13 @@ const unsigned NUM_INSTRUCTIONS = (sizeof(INSTRUCTIONS) / sizeof(INSTRUCTIONS[0]
 const unsigned NUM_CHILDREN = 2;  // Number of children two parents create upon reproduction.
 
 // Modify any constants below.
-const unsigned POP_SIZE = 10;  // The size of the population. This always remains the same between generations.
-const unsigned MIN_PROGRAM_SIZE = 10;  // The minimum size a possible program can be.
-const unsigned MAX_PROGRAM_SIZE = 500;  // The maximum size a possible program can be.
-const double MUTATION_RATE = 0.01;  // The chance of a 'gene' in a child being mutated.
-const double ERROR_SCORE = 1.0;  // The score an erroneous program receives.
+const unsigned POP_SIZE = 100;  // The size of the population. This always remains the same between generations.
+const unsigned MIN_PROGRAM_SIZE = 350;  // The minimum size a possible program can be.
+const unsigned MAX_PROGRAM_SIZE = 400;  // The maximum size a possible program can be.
+const double MUTATION_RATE = 0.02;  // The chance of a 'gene' in a child being mutated.
+const double ERROR_SCORE = 0.1;  // The score an erroneous program receives.
 const double LENGTH_PENALTY = 0.001;  // The size of the program is multiplied by this then added to score.
-const unsigned DISPLAY_RATE = 10000;  // How often to display the best program so far.
+const unsigned DISPLAY_RATE = 1000;  // How often to display the best program so far.
 
 // These aren't constant because they can be changed by the user.
 std::string GOAL_OUTPUT = "Computerphile";
@@ -55,9 +55,14 @@ char get_random_instruction()
     return INSTRUCTIONS[get_random_int(0, NUM_INSTRUCTIONS - 1)];
 }
 
+char get_nonout_instruction()
+{
+    return INSTRUCTIONS[get_random_int(0, NUM_INSTRUCTIONS - 2)];
+}
 
 void add_instruction(std::string &program, unsigned index)
 {
+    //TODO nonout
     std::string instr(1, get_random_instruction());  // Need to convert char to string for use by insert.
 
     if((program.length() + 1) <= MAX_PROGRAM_SIZE)
@@ -75,9 +80,42 @@ void remove_instruction(std::string &program, unsigned index)
 
 void mutate_instruction(std::string &program, unsigned index)
 {
-    program[index] = get_random_instruction();
+    if (program.find(".") == std::string::npos) {
+      program[index] = get_random_instruction();
+    } else {
+      // exclude .
+      program[index] = get_nonout_instruction();
+    }
 }
 
+
+std::string optimize(std::string &program) {
+  std::string optimized;
+  //std::cout << program << std::endl;
+  signed sum = 0;
+  for (unsigned i=0; i<program.length(); i++) {
+    if (program[i] == '+') {
+      sum += 1;
+    } else if (program[i] == '-') {
+      sum -= 1;
+    } else {
+      //std::cout << sum << std::endl;
+      if (sum < 0) {
+        for (signed s=sum;s<0;s++) {
+          optimized += '-';
+        }
+      } else if (sum > 0) {
+        for (signed s=0;s<sum;s++) {
+          optimized += '+';
+        }
+      }
+      sum = 0;
+      optimized += program[i];
+    }
+  }
+  //std::cout << optimized << std::endl;
+  return optimized;
+}
 
 // Creates a random program by first randomly determining its size and then adding that many instructions randomly.
 std::string create_random_program()
@@ -86,9 +124,15 @@ std::string create_random_program()
     unsigned program_size = get_random_int(MIN_PROGRAM_SIZE, MAX_PROGRAM_SIZE);
 
     for(unsigned i = 1; i <= program_size; ++i)
-        program += get_random_instruction();
+        program += get_nonout_instruction();
 
+    program = optimize(program);
     return program;
+}
+
+std::string create_nonrandom_program() {
+  std::string program = "->++>+++>+>+>+++>>>>>>>>>>>>>>>>>>>>>>+>+>++>+++>++>>+++>+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+>+>>+++>>>>+++>>>+++>+>>>>>>>++>+++>+++>+>>+++>+++>+>+++>+>+++>+>++>+++>>>+>+>+>+>++>+++>+>+>>+++>>>>>>>+>+>>>+>+>++>+++>+++>+>>+++>+++>+>+++>+>++>+++>++>>+>+>++>+++>+>+>>+++>>>+++>+>>>++>+++>+++>+>>+++>>>+++>+>+++>+>>+++>>+++>>+[[>>+[>]+>+[<]<-]>>[>]<+<+++[<]<<+]>>>[>]+++>+[+[<++++++++++++++++>-]<++++++++++.<]";
+  return program;
 }
 
 
@@ -96,22 +140,33 @@ std::string create_random_program()
 void initialize_population(std::string programs[])
 {
     for(unsigned i = 0; i < POP_SIZE; ++i)
-        programs[i] = create_random_program();
+        programs[i] = create_random_program();//XXX create_nonrandom_program();
+
+    //for (unsigned i = 0; i < POP_SIZE/2; ++i)
+    //    programs[i] = create_nonrandom_program();
+
 }
 
 
 // The Fitness Function. Determines how 'fit' a program is using a few different criteria.
 double calculate_fitness(const std::string &program, Interpreter &bf)
 {
+
+    GOAL_OUTPUT = program;
+    GOAL_OUTPUT_SIZE = GOAL_OUTPUT.length();
     // The score of the worst program possible (Besides erroneous program, and not taking into account program length).
-    double max_score = GOAL_OUTPUT_SIZE * CHAR_SIZE;
+    double max_score = GOAL_OUTPUT_SIZE * CHAR_SIZE;//TODO
+    //max_score = max_score * max_score;
     double score = 0;
     double final_score;
 
     std::string output = bf.run(program);
 
     // Impose a very large penalty for error programs, but still allow them a chance at reproduction for genetic variation.
-    if(output == Interpreter::ERROR)
+    if(output == Interpreter::RUNTIMEERROR)
+        return ERROR_SCORE;
+
+    if (output == Interpreter::SYNTAXERROR)
         return ERROR_SCORE;
 
     /* We need to know whether the goal output or the program's output is larger
@@ -123,16 +178,25 @@ double calculate_fitness(const std::string &program, Interpreter &bf)
     for(size_t i = 0; i < max_str.length(); ++i)
     {
         unsigned output_char = (i < min_str.length()) ? min_str[i] : max_str[i] + CHAR_SIZE;
-        score += abs(output_char - max_str[i]);
+        double delta = abs(output_char - max_str[i]);
+        score += delta;//*delta;
     }
+    double deltapenalty = score/max_score;
 
-    score += (program.length() * LENGTH_PENALTY);  // Impose a slight penalty for longer programs.
+    double runtimepenalty = bf.total_cycles/(double)Interpreter::MAX_CYCLES;
+
+    double lengthpenalty = (abs(program.length()-(double)MIN_PROGRAM_SIZE) * LENGTH_PENALTY);
+
+    double outputpenalty = (abs(output.length()-(double)GOAL_OUTPUT_SIZE) * LENGTH_PENALTY);
+
+    double penalties = 50 * deltapenalty + runtimepenalty + outputpenalty + lengthpenalty;
+    //std::cout << program.length() << std::endl;
 
     /* The lower the score of a program, the better (think golf).
        However other calculations in the program assume a higher score is better.
        Thus, we subtract the score from max_score to get a final score. */
-    final_score = max_score - score;
-
+    final_score = 53-penalties;
+    //std::cout << final_score << " " << deltapenalty << " " << runtimepenalty << " " << lengthpenalty << " " << outputpenalty << std::endl;
     return final_score;
 }
 
@@ -144,7 +208,7 @@ std::string score_population(const std::string programs[], double scores[], int 
 {
     std::string best_program;
     double best_score = 0;
-    double worst_score = 9999;  // Arbitrarily high number.
+    double worst_score = 999999999999999999;  // Arbitrarily high number.
 
     for(unsigned i = 0; i < POP_SIZE; ++i)
     {
@@ -161,7 +225,7 @@ std::string score_population(const std::string programs[], double scores[], int 
             worst_score = scores[i];
         }
     }
-
+    //std::cout << "New best score:" << best_score << std::endl;
     return best_program;
 }
 
@@ -268,6 +332,9 @@ void mate(const std::string &parent1, const std::string &parent2, std::string ch
     // Call the mutate function on the children which has a small chance of actually causing a mutation.
     children[0] = mutate(min_str);
     children[1] = mutate(max_str);
+
+    children[0] = optimize(children[0]);
+    children[1] = optimize(children[1]);
 }
 
 
@@ -353,15 +420,15 @@ int main(int argc, char *argv[])
             std::cout << best_program << std::endl;
 
             std::string output = brainfuck.run(best_program);
-            std::cout << "\nOutput: " << output << std::endl;
+            std::cout << output << "\nOutput: ^" << output.length() << std::endl;
 
             if(output == GOAL_OUTPUT && !keep_going)
             {
                 std::cout << "\n\a\a\aProgram evolved!" << std::endl;
                 std::cout << "Save source code as a text file? (y/n) ";
 
-                char answer;
-                std::cin >> answer;
+                char answer = 'y';
+                //std::cin >> answer;
 
                 if(answer == 'y')
                 {
@@ -372,8 +439,8 @@ int main(int argc, char *argv[])
 
                 //std::cout << "It took roughly " << generations << " generations to evolve this program." << std::endl;
                 std::cout << "Keep evolving for more efficiency? (y/n) ";
-                std::cin >> answer;
-
+                //std::cin >> answer;
+                answer = 'y';
                 // Quit the program if the user doesn't want to continue.
                 if(answer != 'y')
                     return 0;
