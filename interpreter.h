@@ -22,7 +22,6 @@ class Interpreter
 {
 private:
     // The max number of cycles the program can run before being assumed it is stuck in an infinite loop.
-    static const unsigned MAX_CYCLES = 1000;
     static const unsigned TAPE_SIZE = 1000;  // The size of the tape. Subject to change.
 
     unsigned char tape[TAPE_SIZE];  // The memory tape.
@@ -33,7 +32,6 @@ private:
     std::string program;  // The current program being executed.
     std::string output;  // The programs complete output to be returned at the end of execution.
     bool has_error;  // True if the interpreter ever encounters an error in the program.
-    unsigned total_cycles;  // The number of cycles the program has been running for.
 
     void inc_pntr();  // Increments tape_pntr
     void dec_pntr();  // Decrements tape_pntr
@@ -52,11 +50,14 @@ private:
 public:
     Interpreter();
 
+    unsigned total_cycles;  // The number of cycles the program has been running for.
     // Loops through the entire program, character-by-character, and interprets it, then returns any output.
     std::string run(const std::string &prgrm);
 
-    static const std::string ERROR;  // The output returned for erroneous programs.
+    static const unsigned MAX_CYCLES = 1240000;
 
+    static const std::string RUNTIMEERROR;  // The output returned for erroneous programs.
+    static const std::string SYNTAXERROR;
 };
 
 #endif

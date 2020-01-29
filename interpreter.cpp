@@ -3,7 +3,8 @@
 #include <sstream>
 #include "interpreter.h"
 
-const std::string Interpreter::ERROR = "Error";
+const std::string Interpreter::RUNTIMEERROR = "RuntimeError";
+const std::string Interpreter::SYNTAXERROR = "SyntaxError";
 
 Interpreter::Interpreter()
 {
@@ -16,13 +17,13 @@ std::string Interpreter::run(const std::string &prgrm)
     this->program = prgrm;
 
     if(!this->check_syntax())
-        return Interpreter::ERROR;
+        return Interpreter::SYNTAXERROR;
 
     while(this->instruction_pntr < this->program.length())
     {
         // If the program throws an error or is running too long, terminate it.
         if(this->total_cycles > this->MAX_CYCLES || this->has_error)
-            return Interpreter::ERROR;
+            return Interpreter::RUNTIMEERROR;
 
         // Now we decide which operation to perform based on the character.
         switch(this->program[this->instruction_pntr])
@@ -42,9 +43,6 @@ std::string Interpreter::run(const std::string &prgrm)
         case '.':
             this->out_byte();
             break;
-        case '#':  // This was only used for debugging purposes, and is not an actual command.
-            this->out_byte_as_int();
-            break;
         case '[':
             this->begin_loop();
             break;
@@ -59,6 +57,7 @@ std::string Interpreter::run(const std::string &prgrm)
         ++this->total_cycles;
     }
 
+    //std::cout << this->total_cycles << std::endl;
     return this->output;
 }
 
